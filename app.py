@@ -25,6 +25,10 @@ def load_data():
 
 df = load_data()
 
+# ==== DEBUG: XEM CỘT & LINK ẢNH ====
+st.write("CÁC CỘT:", df.columns.tolist())
+st.write("5 LINK ẢNH:", df["link ảnh"].head())
+
 # =========================
 # 2) TF-IDF
 # =========================
