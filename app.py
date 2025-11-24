@@ -8,7 +8,7 @@ from sklearn.metrics.pairwise import cosine_similarity
 # =========================
 @st.cache_data
 def load_data():
-    df = pd.read_csv("data.csv")
+    df = pd.read_csv("group6.csv")
 
     # Chuẩn hóa từ khóa (thay ; bằng space)
     df["Từ khóa"] = df["Từ khóa"].fillna("").str.replace(";", " ")
