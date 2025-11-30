@@ -1,92 +1,84 @@
 import streamlit as st
 import pandas as pd
+import re
 from sklearn.feature_extraction.text import TfidfVectorizer
 from sklearn.metrics.pairwise import cosine_similarity
+from underthesea import word_tokenize
 
-# =========================
-# 1) Load & xử lý dữ liệu
-# =========================
+
+# 1. TEXT PREPROCESSING PIPELINE
+def preprocess_text(text):
+    if pd.isna(text):
+        return ""
+    text = text.lower()                                              # Lowercasing
+    text = re.sub(r"[^a-zA-Z0-9áàảãạăắằẳẵặâấầẩẫậéèẻẽẹêếềểễệ"
+                  r"íìỉĩịóòỏõọôốồổỗộơớờởỡợúùủũụưứừửữự"
+                  r"ýỳỷỹỵđ\s]", " ", text)                          # Remove punctuation
+    text = " ".join(word_tokenize(text, format="text").split())      # Tokenization
+    return text
+
+
+# 2. LOAD DATA + BUILD TF-IDF
 @st.cache_data
 def load_data():
-    df = pd.read_csv("group6.csv")
+    df = pd.read_csv("Gr6.csv")
 
-    # Chuẩn hóa cột Từ khóa 
-    df["Từ khóa"] = df["Từ khóa"].fillna("").str.replace(";", " ")
+    df["Từ khóa"] = df["Từ khóa"].astype(str)
+    df["Link ảnh"] = df["Link ảnh"].fillna("")
 
-    # Gộp các cột để TF-IDF
-    df["FullText"] = (
-        df["Tên sản phẩm"].fillna("") + " " +
-        df["Mô tả"].fillna("") + " " +
-        df["Từ khóa"] + " " +
-        df["Thương hiệu"].fillna("")
-    )
+    # Preprocessing + build FullText
+    df["FullText"] = df["Từ khóa"].apply(preprocess_text)
 
-    # Chuẩn hóa cột Link ảnh
-    if "Link ảnh" in df.columns:
-        df["Link ảnh"] = df["Link ảnh"].fillna("").str.strip()
+    vectorizer = TfidfVectorizer()
+    tfidf_matrix = vectorizer.fit_transform(df["FullText"])
 
-    return df
+    return df, vectorizer, tfidf_matrix
 
-df = load_data()
+df, vectorizer, tfidf_matrix = load_data()
 
-# =========================
-# 2) TF-IDF + Cosine Similarity
-# =========================
-vectorizer = TfidfVectorizer()
-tfidf_matrix = vectorizer.fit_transform(df["FullText"])
+# 3. STREAMLIT UI
+st.title("Demo CBF for small business")
+st.subheader("Introduction")
+st.write("This system recommends the most relevant products based on your input description, 
+keywords, or product name about Adidas, Lacoste, Gucci, Nike and Puma products.")
 
-# =========================
-# 3) Giao diện Streamlit
-# =========================
-st.set_page_config(
-    page_title="Demo CBF trong kinh doanh bán hàng",
-    layout="wide"
-)
+user_query = st.text_input("Enter the product name or description:")
 
-st.title("Chúng tôi bán đồ hàng hiệu, mọi sản phẩm bạn cần chúng tôi đều có (chỉ bán đồ về adidas, nike, lacoste, puma, gucci. Những cái khác chúng tôi sẽ mở rộng phát triển thêm sau) ;)")
-st.write("Tìm sản phẩm dựa trên mô tả / từ khóa bạn nhập vào.")
-
-user_query = st.text_input("Nhập sản phẩm bạn muốn tìm:")
+threshold = 0.1   # keep original threshold
 
 if user_query:
-    query_vec = vectorizer.transform([user_query])
-    scores = cosine_similarity(query_vec, tfidf_matrix)[0]
-    ranking = scores.argsort()[::-1]
 
-    threshold = 0.1
+    # Preprocess exactly like dataset FullText
+    user_query_processed = preprocess_text(user_query)
 
-    if scores[ranking[0]] < threshold:
-        st.warning("Không tìm thấy sản phẩm phù hợp.")
+    # TF-IDF vector
+    user_vec = vectorizer.transform([user_query_processed])
+
+    # Cosine similarity
+    similarities = cosine_similarity(user_vec, tfidf_matrix)[0]
+
+    # Ranking
+    df["similarity"] = similarities
+    result = df.sort_values(by="similarity", ascending=False)
+
+    # Filter using threshold
+    filtered = result[result["similarity"] >= threshold]
+
+
+    # 4. DISPLAY RESULTS
+    if filtered.empty:
+        st.warning("No matching products found. Try another description.")
     else:
-        best_idx = ranking[0]
+        st.subheader("Our product:")
+        best = filtered.iloc[0]
 
-        st.subheader("Sản phẩm của chúng tôi:")
+        st.write(f"**{best['Tên sản phẩm']}** — similarity: {best['similarity']:.4f}")
+        if best["Link ảnh"] != "":
+            st.image(best["Link ảnh"], width=250)
 
-        # Hiển thị ảnh
-        if "Link ảnh" in df.columns and df.loc[best_idx, "Link ảnh"]:
-            st.image(df.loc[best_idx, "Link ảnh"], width=250)
-
-        st.write(f"**Tên:** {df.loc[best_idx, 'Tên sản phẩm']}")
-        st.write(f"**Mô tả:** {df.loc[best_idx, 'Mô tả']}")
-        st.write(f"**Giá:** {df.loc[best_idx, 'Giá']}")
-        st.write(f"**Thương hiệu:** {df.loc[best_idx, 'Thương hiệu']}")
-        st.write(f"Điểm đánh giá: {df.loc[best_idx, 'Điểm đánh giá']}")
-        st.write(f"**Similarity:** `{scores[best_idx]:.3f}`")
-
-        st.subheader("Có thể bạn thích sản phẩm này:")
-
-        for idx in ranking[1:6]:
-            if scores[idx] < threshold:
-                break
-
-            # Hiển thị ảnh gợi ý
-            if "Link ảnh" in df.columns and df.loc[idx, "Link ảnh"]:
-                st.image(df.loc[idx, "Link ảnh"], width=180)
-
-            st.write(f"**Tên:** {df.loc[idx, 'Tên sản phẩm']}")
-            st.write(f"**Mô tả:** {df.loc[idx, 'Mô tả']}") 
-            st.write(f"Giá: {df.loc[idx, 'Giá']}")
-            st.write(f"**Thương hiệu:** {df.loc[idx, 'Thương hiệu']}")
-            st.write(f"Điểm đánh giá: {df.loc[idx, 'Điểm đánh giá']}")
-            st.write(f"Similarity: `{scores[idx]:.3f}`")
-            st.write("---")
+        # Additional recommendations
+        st.subheader("Other Suggestions (Top 30)")
+        for i, row in filtered.iloc[1:31].iterrows():
+            st.write(f"- {row['Tên sản phẩm']} — `{row['similarity']:.4f}`")
+            if row["Link ảnh"] != "":
+                st.image(row["Link ảnh"], width=180)
