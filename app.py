@@ -39,8 +39,7 @@ df, vectorizer, tfidf_matrix = load_data()
 # 3. STREAMLIT UI
 st.title("Demo CBF for small business")
 st.subheader("Introduction")
-st.write("This system recommends the most relevant products based on your input description, 
-keywords, or product name about Adidas, Lacoste, Gucci, Nike and Puma products.")
+st.write("This system recommends the most relevant products based on your input description, keywords, or product name about Adidas, Lacoste, Gucci, Nike and Puma products.")
 
 user_query = st.text_input("Enter the product name or description:")
 
