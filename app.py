@@ -3,10 +3,13 @@ import pandas as pd
 import re
 from sklearn.feature_extraction.text import TfidfVectorizer
 from sklearn.metrics.pairwise import cosine_similarity
-from underthesea import word_tokenize
+from pyvi import ViTokenizer
+
 
 
 # 1. TEXT PREPROCESSING PIPELINE
+from pyvi import ViTokenizer
+
 def preprocess_text(text):
     if pd.isna(text):
         return ""
@@ -14,7 +17,7 @@ def preprocess_text(text):
     text = re.sub(r"[^a-zA-Z0-9áàảãạăắằẳẵặâấầẩẫậéèẻẽẹêếềểễệ"
                   r"íìỉĩịóòỏõọôốồổỗộơớờởỡợúùủũụưứừửữự"
                   r"ýỳỷỹỵđ\s]", " ", text)                          # Remove punctuation
-    text = " ".join(word_tokenize(text, format="text").split())      # Tokenization
+    text = " ".join(ViTokenizer.tokenize(text).split())              # Tokenization
     return text
 
 
